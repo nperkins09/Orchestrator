@@ -1,0 +1,55 @@
+name: Pipeline Orchestrator
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  orchestrate:
+    name: Dispatch Pipelines
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install gh CLI
+        run: |
+          type -p gh > /dev/null || (
+            sudo apt-get update &&
+            sudo apt-get install -y gh
+          )
+
+      - name: Verify gh auth
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_HOST:  ${{ secrets.GH_HOST }}
+        run: gh auth status -h ${{ secrets.GH_HOST }}
+
+      - name: Run orchestrator
+        env:
+          # Snowflake — shared auth
+          SNOWFLAKE_ACCOUNT:    ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOWFLAKE_USER:       ${{ secrets.SNOWFLAKE_USER }}
+          SNOWFLAKE_PASSWORD:   ${{ secrets.SNOWFLAKE_PASSWORD }}
+          SNOWFLAKE_WAREHOUSE:  ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+      
+          # Snowflake — governance
+          SNOWFLAKE_GOVERNANCE_DATABASE:        ${{ secrets.SNOWFLAKE_GOVERNANCE_DATABASE }}
+          SNOWFLAKE_GOVERNANCE_SCHEMA:          ${{ secrets.SNOWFLAKE_GOVERNANCE_SCHEMA }}
+          SNOWFLAKE_GOVERNANCE_REGISTRY_TABLE:  ${{ secrets.SNOWFLAKE_GOVERNANCE_REGISTRY_TABLE }}
+      
+          # GitHub
+          GH_TOKEN:     ${{ secrets.GH_TOKEN }}
+          GH_ORG:       ${{ secrets.GH_ORG }}
+          GH_HOST:      ${{ secrets.GH_HOST }}
+        run: python src/orchestrator.py
